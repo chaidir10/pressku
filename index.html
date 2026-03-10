@@ -8,6 +8,8 @@
 <title>PresensiKu</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
 /* ─── VARIABLES ─── */
 :root{
@@ -312,10 +314,22 @@ a{text-decoration:none}
 .sh-icon{width:34px;height:34px;border-radius:10px;background:var(--sf3);display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
 .sh-label{font-size:10px;color:var(--tx2);margin-bottom:2px}
 .sh-value{font-size:13px;font-weight:700;font-family:'JetBrains Mono',monospace}
-.sheet-map{background:var(--sf2);border-radius:16px;margin:0 16px;padding:14px;border:1px solid var(--bd);margin-bottom:16px}
-.map-placeholder{background:var(--sf3);border-radius:11px;height:100px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--tx2)}
-.map-placeholder i{font-size:24px}
-.map-placeholder p{font-size:10px}
+.sheet-map{border-radius:16px;margin:0 16px;margin-bottom:16px;overflow:hidden;border:1px solid var(--bd)}
+.map-header{background:var(--sf2);padding:10px 14px;display:flex;align-items:center;gap:6px;font-size:10px;font-weight:700;color:var(--tx2);text-transform:uppercase;letter-spacing:.8px;border-bottom:1px solid var(--bd)}
+.map-header i{color:var(--ac);font-size:12px}
+#leafletMap{height:220px;width:100%;z-index:1}
+.map-addr{background:var(--sf2);padding:10px 14px;font-size:11px;color:var(--tx2);display:flex;align-items:center;gap:6px;border-top:1px solid var(--bd)}
+.map-addr i{color:var(--rd);flex-shrink:0}
+.map-addr span{flex:1;line-height:1.4}
+.map-no-loc{background:var(--sf2);height:110px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;color:var(--tx2)}
+.map-no-loc i{font-size:26px;opacity:.4}
+.map-no-loc p{font-size:11px}
+@keyframes mapPulse{0%,100%{transform:scale(1);opacity:.2}50%{transform:scale(1.8);opacity:.05}}
+.leaflet-popup-content-wrapper{background:var(--sf,#13131A)!important;color:var(--tx,#F0F0FF)!important;border-radius:12px!important;box-shadow:0 8px 24px rgba(0,0,0,.5)!important;border:1px solid rgba(255,255,255,.12)!important;font-family:'Plus Jakarta Sans',sans-serif!important;font-size:11px!important}
+.leaflet-popup-tip-container{display:none}
+.leaflet-popup-content{margin:10px 14px!important;line-height:1.5!important}
+.leaflet-control-zoom a{background:var(--sf,#13131A)!important;color:var(--tx,#F0F0FF)!important;border-color:rgba(255,255,255,.12)!important}
+[data-theme="dark"] #leafletMap .leaflet-tile{filter:brightness(.7) saturate(.85) hue-rotate(180deg) invert(1)}
 .sheet-footer{padding:0 16px 28px}
 .sheet-close-btn{width:100%;padding:14px;border-radius:13px;background:var(--sf2);border:1px solid var(--bd);color:var(--tx2);font-size:13px;font-weight:700;cursor:pointer;transition:all .2s}
 .sheet-close-btn:active{transform:scale(.97)}
@@ -713,12 +727,10 @@ a{text-decoration:none}
     <div style="padding:0 18px"><div class="sheet-handle"></div></div>
     <div class="sheet-title" id="dSheetTitle">Detail Absensi</div>
     <div class="sheet-hero" id="dSheetHero"></div>
-    <div class="sheet-map">
-      <div class="sec" style="margin-bottom:8px">Lokasi Absensi</div>
-      <div class="map-placeholder" id="dSheetMap">
-        <i class="fa-solid fa-map-location-dot"></i>
-        <p id="dSheetMapTxt">—</p>
-      </div>
+    <div class="sheet-map" id="sheetMapWrap">
+      <div class="map-header"><i class="fa-solid fa-location-dot"></i> Lokasi Absensi</div>
+      <div id="leafletMap"></div>
+      <div class="map-addr" id="mapAddrBar"><i class="fa-solid fa-map-pin"></i><span id="mapAddrTxt">—</span></div>
     </div>
     <div class="sheet-footer">
       <button class="sheet-close-btn" onclick="document.getElementById('detailOv').classList.remove('open')">
@@ -775,14 +787,14 @@ const S = {
   stream:null, facingMode:'user', location:null, locationName:null,
   wtInterval:null,
   history:[
-    {id:1, date:'09 Mar 2026', hari:'Senin',   masuk:'07:22', keluar:'17:05', status:'hadir', lokasi:'Jl. Gatot Subroto No.12, Jakarta'},
-    {id:2, date:'06 Mar 2026', hari:'Jumat',   masuk:'07:48', keluar:'17:15', status:'telat', lokasi:'Kantor Pusat, Jakarta Selatan'},
-    {id:3, date:'05 Mar 2026', hari:'Kamis',   masuk:'-',     keluar:'-',     status:'izin',  lokasi:'-'},
-    {id:4, date:'04 Mar 2026', hari:'Rabu',    masuk:'07:15', keluar:'17:00', status:'hadir', lokasi:'Kantor Pusat, Jakarta Selatan'},
-    {id:5, date:'03 Mar 2026', hari:'Selasa',  masuk:'07:28', keluar:'17:05', status:'hadir', lokasi:'Kantor Pusat, Jakarta Selatan'},
-    {id:6, date:'02 Mar 2026', hari:'Senin',   masuk:'07:20', keluar:'17:10', status:'hadir', lokasi:'Kantor Pusat, Jakarta Selatan'},
-    {id:7, date:'27 Feb 2026', hari:'Jumat',   masuk:'07:55', keluar:'17:00', status:'telat', lokasi:'Kantor Pusat, Jakarta Selatan'},
-    {id:8, date:'26 Feb 2026', hari:'Kamis',   masuk:'-',     keluar:'-',     status:'alfa',  lokasi:'-'},
+    {id:1, date:'09 Mar 2026', hari:'Senin',   masuk:'07:22', keluar:'17:05', status:'hadir', lokasi:'Jl. Gatot Subroto No.12, Jakarta',       lat:-6.2297,  lng:106.8295},
+    {id:2, date:'06 Mar 2026', hari:'Jumat',   masuk:'07:48', keluar:'17:15', status:'telat', lokasi:'Kantor Pusat, Jakarta Selatan',           lat:-6.2350,  lng:106.8219},
+    {id:3, date:'05 Mar 2026', hari:'Kamis',   masuk:'-',     keluar:'-',     status:'izin',  lokasi:'-',                                       lat:null,     lng:null},
+    {id:4, date:'04 Mar 2026', hari:'Rabu',    masuk:'07:15', keluar:'17:00', status:'hadir', lokasi:'Kantor Pusat, Jakarta Selatan',           lat:-6.2351,  lng:106.8220},
+    {id:5, date:'03 Mar 2026', hari:'Selasa',  masuk:'07:28', keluar:'17:05', status:'hadir', lokasi:'Kantor Pusat, Jakarta Selatan',           lat:-6.2349,  lng:106.8218},
+    {id:6, date:'02 Mar 2026', hari:'Senin',   masuk:'07:20', keluar:'17:10', status:'hadir', lokasi:'Kantor Pusat, Jakarta Selatan',           lat:-6.2352,  lng:106.8221},
+    {id:7, date:'27 Feb 2026', hari:'Jumat',   masuk:'07:55', keluar:'17:00', status:'telat', lokasi:'Kantor Pusat, Jakarta Selatan',           lat:-6.2348,  lng:106.8217},
+    {id:8, date:'26 Feb 2026', hari:'Kamis',   masuk:'-',     keluar:'-',     status:'alfa',  lokasi:'-',                                       lat:null,     lng:null},
   ],
   logs:[
     {id:1, type:'Izin', subtype:'izin', icon:'fa-solid fa-file-lines', color:'var(--ac)', tanggal:'05 Mar 2026', diajukan:'04 Mar 2026 14:32', keterangan:'Urusan keluarga mendesak - menghadiri pernikahan saudara di luar kota.', status:'disetujui', oleh:'HR Manager', catatan:'Disetujui. Mohon lampirkan undangan lain kali.'},
@@ -871,6 +883,7 @@ function toggleTheme(){
   const sw=document.getElementById('themeSw');
   sw.className='tsw'+(S.isDark?' on':'');
   document.getElementById('themeLabel').textContent=S.isDark?'Mode gelap aktif':'Mode terang aktif';
+  if(_lMap) setTimeout(()=>_lMap.invalidateSize(),60);
 }
 
 /* ── TABS ── */
@@ -944,10 +957,31 @@ function animateBars(){
   document.getElementById('barA').style.width=c.pctA+'%';
 }
 
-/* ── DETAIL ABSENSI SHEET ── */
+/* ── DETAIL ABSENSI SHEET + LEAFLET MAP ── */
+let _lMap=null, _lMarker=null, _lCircle=null;
+
+function initMap(){
+  if(_lMap) return;
+  _lMap = L.map('leafletMap',{zoomControl:false,attributionControl:true,dragging:true,scrollWheelZoom:false,doubleClickZoom:true,touchZoom:true});
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(_lMap);
+  L.control.zoom({position:'topright'}).addTo(_lMap);
+}
+
+function pulseIcon(color){
+  const c=color||'#6C63FF';
+  return L.divIcon({
+    className:'',
+    html:`<div style="position:relative;width:44px;height:44px;display:flex;align-items:center;justify-content:center">
+      <div style="position:absolute;width:44px;height:44px;border-radius:50%;background:${c};animation:mapPulse 2s infinite;pointer-events:none"></div>
+      <div style="position:relative;width:22px;height:22px;border-radius:50%;background:${c};border:3px solid #fff;box-shadow:0 3px 12px rgba(0,0,0,.5);z-index:2"></div>
+    </div>`,
+    iconSize:[44,44],iconAnchor:[22,22],popupAnchor:[0,-24]
+  });
+}
+
 function openDetailAbsen(id){
   const it=S.history.find(h=>h.id===id);
-  if(!it)return;
+  if(!it) return;
   const m=SMETA[it.status]||SMETA.alfa;
   document.getElementById('dSheetTitle').textContent=`Detail — ${it.hari}, ${it.date}`;
   const statusColors={hadir:'var(--gr)',telat:'var(--yl)',alfa:'var(--rd)',izin:'var(--ac)'};
@@ -973,8 +1007,36 @@ function openDetailAbsen(id){
       <div class="sh-icon"><i class="fa-solid fa-business-time" style="color:var(--gr)"></i></div>
       <div><div class="sh-label">Durasi Kerja</div><div class="sh-value">${calcDurasi(it.masuk,it.keluar)}</div></div>
     </div>`;
-  document.getElementById('dSheetMapTxt').textContent=it.lokasi!=='-'?it.lokasi:'Lokasi tidak tersedia';
+
+  // Rebuild map section in case it was replaced
+  const wrap=document.getElementById('sheetMapWrap');
+  wrap.innerHTML=`<div class="map-header"><i class="fa-solid fa-location-dot"></i> Lokasi Absensi</div>
+    <div id="leafletMap" style="height:220px;width:100%;z-index:1"></div>
+    <div class="map-addr" id="mapAddrBar"><i class="fa-solid fa-map-pin"></i><span id="mapAddrTxt">—</span></div>`;
+  _lMap=null; _lMarker=null; _lCircle=null; // reset after DOM rebuild
+
   document.getElementById('detailOv').classList.add('open');
+
+  if(it.lat && it.lng){
+    document.getElementById('mapAddrTxt').textContent=it.lokasi!=='-'?it.lokasi:`${it.lat.toFixed(5)}, ${it.lng.toFixed(5)}`;
+    const ll=[it.lat, it.lng];
+    const markerColors={hadir:'#43E97B',telat:'#FFD166',alfa:'#FF6584',izin:'#6C63FF'};
+    setTimeout(()=>{
+      initMap();
+      _lCircle=L.circle(ll,{radius:35,color:'#6C63FF',fillColor:'#6C63FF',fillOpacity:.1,weight:1.5,dashArray:'5 5'}).addTo(_lMap);
+      _lMarker=L.marker(ll,{icon:pulseIcon(markerColors[it.status]||'#6C63FF')})
+        .bindPopup(`<strong>${it.hari}, ${it.date}</strong><br>${it.masuk!=='-'?'⏰ Masuk '+it.masuk+' WIB':''}${it.keluar!=='-'?'<br>🚪 Pulang '+it.keluar+' WIB':''}`)
+        .addTo(_lMap);
+      _lMap.setView(ll,16);
+      _lMap.invalidateSize();
+      setTimeout(()=>_lMarker&&_lMarker.openPopup(),600);
+    },150);
+  } else {
+    const mapEl=document.getElementById('leafletMap');
+    mapEl.style.height='0';
+    document.getElementById('mapAddrBar').style.display='none';
+    wrap.insertAdjacentHTML('beforeend',`<div class="map-no-loc"><i class="fa-solid fa-map-location-dot"></i><p>Lokasi tidak tersedia untuk entri ini</p></div>`);
+  }
 }
 function calcDurasi(masuk,keluar){
   if(masuk==='-'||keluar==='-')return'—';
@@ -1194,7 +1256,7 @@ function handleAbsenSuccess(){
     // Work timer
     startWorkTimer(now);
     // History entry
-    const entry={id:Date.now(),date:`${p2(now.getDate())} ${MONS[now.getMonth()]} ${now.getFullYear()}`,hari:DAYS[now.getDay()],masuk:`${h}:${m}`,keluar:'-',status:isLate?'telat':'hadir',lokasi:S.locationName||'Tidak diketahui'};
+    const entry={id:Date.now(),date:`${p2(now.getDate())} ${MONS[now.getMonth()]} ${now.getFullYear()}`,hari:DAYS[now.getDay()],masuk:`${h}:${m}`,keluar:'-',status:isLate?'telat':'hadir',lokasi:S.locationName||'Tidak diketahui',lat:S.location?S.location.lat:null,lng:S.location?S.location.lng:null};
     S.history.unshift(entry);
   }else{
     S.keluarTime=now;
